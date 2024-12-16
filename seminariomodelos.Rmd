@@ -1,0 +1,215 @@
+---
+title: "Seminário Modelos Lineares"
+author: "Giovanni Zini"
+date: "2024-12-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Banco de dados
+
+- Título: Sleep Health and Lifestyle Dataset
+- Kaggle, por: Laksika Tharmalingam
+- Dados Simulados
+- $n = 374$
+
+#### Variáveis Utilizadas 
+- `Blood Pressure` - Pressão Arterial (sistólica/diastólica)
+- `Heart Rate` - Frêquencia Cardíaca em repouso
+- `Daily Steps` - Número de Passos Diários
+- `BMI Category` - Categoria do IMC
+
+#### Variáveis Criadas 
+- `Mean Blood Pressure` - Pressão arterial média
+$$
+\large \frac{sistólica + 2(diastólica)}{3}
+$$
+- `Daily Steps Thousand` = Número de Passos Diários (Mil) 
+
+## Objetivo 
+
+- Prever a pressão arterial média dos indivíduos com base no número de passos diários e na média de batimentos cardíacos em repouso.
+
+$$
+\huge  PressãoArterial = \beta_0 + \beta_1Frequência Cardíaca + \beta_2Passos
+$$
+
+```{r, include=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(car)
+
+data <- read_csv("Sleep_health_and_lifestyle_dataset.csv")
+```
+
+## Estatística Descritiva
+
+#### Densidade das variáveis explicativas e da variável resposta
+```{r, echo=FALSE}
+data$`Mean Blood Pressure` <- with(data, {
+  bp_split <- strsplit(as.character(`Blood Pressure`), "/")
+  
+  systolic <- as.numeric(sapply(bp_split, `[`, 1))
+  diastolic <- as.numeric(sapply(bp_split, `[`, 2))
+  
+  (systolic + 2 * diastolic) / 3
+})
+
+
+exclude = c(17,170:184,202,203,206:218,164:166,152:161,110,112,114,127,129,130,132,133,135,136,138,140,142,145,147,144,143,141,139,137,134,131,128,115:125,113,111,105,95:103,86)
+
+data_f <- subset(data, !(`Person ID` %in% exclude))
+
+
+data_f %>%
+  filter( `BMI Category` == "Normal" | `BMI Category` == "Normal Weight" ) %>%
+    ggplot(aes(x=`Mean Blood Pressure`)) +
+      geom_density(fill="#62f5c9", color="#e9ecef", alpha=0.8) +
+      labs(
+    title = "Distribuição da Pressão Arterial Média",
+    x = "Pressão Arterial Média",
+    y = "Densidade"
+  ) 
+  
+data_f %>%
+  filter( `BMI Category` == "Normal" | `BMI Category` == "Normal Weight" ) %>%
+    ggplot(aes(x=`Daily Steps`)) +
+      geom_density(fill="#19cdff", color="#e9ecef", alpha=0.8)+
+  labs(
+    title = "Distribuição do Número de Passos Diários",
+    x = "Número de Passos Diários",
+    y = "Densidade"
+  ) 
+
+data_f %>%
+  filter( `BMI Category` == "Normal" | `BMI Category` == "Normal Weight" ) %>%
+    ggplot(aes(x=`Heart Rate`)) +
+      geom_density(fill="#f562c9", color="#e9ecef", alpha=0.8)+
+  labs(
+    title = "Distribuição da Frequência Cardíaca Média",
+    x = "Frequência Cardíaca Média",
+    y = "Densidade"
+  ) 
+
+```
+
+#### Dispersão Explicativa x Resposta:
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+circle.size = 2
+
+data_f$`Daily Steps Thousand` <- data_f$`Daily Steps` / 1000
+
+data_f <- data_f %>%
+  filter(`BMI Category` == "Normal" | `BMI Category` == "Normal Weight")
+
+
+ggplot(data_f, aes(x=`Heart Rate`, y=`Mean Blood Pressure`)) + 
+  geom_point(size=circle.size,alpha=0.5,color="magenta") + 
+  labs(
+    title = "Gráfico de Dispersão",
+    x = "Frequência Cardíaca Média",
+    y = "Pressão Arterial Média"
+  ) 
+
+ggplot(data_f, aes(x=`Daily Steps Thousand`, y=`Mean Blood Pressure`)) + 
+  geom_point(size=circle.size,alpha=0.5,color="blue") +
+  labs(
+    title = "Gráfico de Dispersão",
+    x = "Passos Diários (Mil)",
+    y = "Pressão Arterial Média"
+  ) 
+```
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE}
+
+# Regressão multivariada usando lm()
+
+modelo <- lm(`Mean Blood Pressure` ~ `Heart Rate` + `Daily Steps Thousand`, data = data_f);
+
+#install.packages("car")
+
+invisible(cor(data_f$`Heart Rate`,data_f$`Daily Steps`))
+
+invisible(vif(modelo))
+
+# Resumo do modelo
+invisible(summary(modelo))
+
+# Testes estatísticos e coeficientes
+invisible(coef(modelo))
+
+```
+
+## Aplicação do Modelo Multivariado
+
+#### Definições do modelo:
+
+- Variáveis Explicativas: Número de passos diários (Mil) e Frequência Cardíaca Média (BPM)
+- Variável Resposta: Pressão Arterial Média
+- $n = 126$
+
+#### Interpretação do fator de inflação de variância:
+
+- $VIF = 1.035$, O que indica que o erro padrão para os coeficientes dessas variáveis preditoras é praticamente igual ao erro padrão teórico caso essas variáveis preditoras tivessem correlação igual a zero entre si.
+
+#### Modelo ajustado:
+
+$$
+\huge  PressãoArterial = 85.04 + 0.207Frequência Cardíaca -0.804Passos
+$$
+
+#### Interpretação dos coeficientes: 
+ 
+- $\beta_0 = 85.04$, Intercepto da reta de regressão, não há interpretação prática.
+- $\beta_1 = 0.207$, O que indica que para um aumento de uma unidade da frequência cardíaca, dado que o número de passos diários seja fixo, há um aumento médio de 0,207 unidades na pressão arterial média.
+- $\beta_2 = -0.804$, O que indica que para um aumento de mil passos diários, dado que a frequência cardíaca média seja fixa, há uma diminuição média de 0,804 unidades na pressão arterial média.
+
+#### Interpretação do coeficiente de determinação:
+
+- O valor de $R^2 = 0.497$, o que indica que 49,7% da variação da pressão arterial média está sendo explicada pelo número de passos diário e a frequência cardíaca média.
+
+## Análise dos Resíduos
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+
+# Extrair os resíduos do modelo
+residuos <- modelo$residuals
+
+# Calcular média e variância dos resíduos
+media_res <- mean(residuos)
+variancia_res <- var(residuos)
+desvio_padrao_res <- sqrt(variancia_res)
+
+# Criar um data frame para o ggplot
+dados <- data.frame(residuos = residuos)
+
+# Gerar o histograma e sobrepor a densidade da normal ajustada
+ggplot(dados, aes(x = residuos)) +
+    geom_density(fill="#69b3a2", color="#e9ecef", alpha=0.8)+
+  stat_function(
+    fun = dnorm, 
+    args = list(mean = media_res, sd = desvio_padrao_res),
+    color = "red", linetype = "dashed", size = 1
+  ) +
+  labs(
+    title = "Densidade dos Resíduos com Densidade Normal Ajustada",
+    x = "Resíduos",
+    y = "Densidade"
+  ) +
+  theme_minimal()
+
+invisible(shapiro.test(modelo$residuals))
+```
+
+#### Interpretação do teste de normalidade Shapiro-Wilk:
+
+- $H_0 =$ Normalidade dos Resíduos
+- $H_1 =$ Não Normalidade dos Resíduos
+- Estatística de Teste $W=0.777$
+- P-valor $p = 1.488\times10^{-12}$
+- Conclusão: Há evidências para rejeitarmos a hipótese nula de normalidade, portanto o modelo pode não estar bem ajustado.
